@@ -51,7 +51,7 @@ except:
     with open('logging.txt', "a") as logfile:
         print('Error parse_bd ' + now, file=logfile)
 else:
-    with open('logging.txt, "a") as logfile:
+    with open('logging.txt', "a") as logfile:
         print('All fine parse_bd ' + now, file=logfile)
 
 
