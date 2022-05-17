@@ -4,9 +4,11 @@ set WORK=base.FDB
 set NEW=base_new.FDB
 set OLD=base_old.FDB
 set BACKUP=base.fdk
+set USER_I=name_db
+set PASSWORD_IB=pass
 
 rem path backup
-set COPY_PATH=X:\backup\bupIK\
+set COPY_PATH=X:\backup\
 
 set USER_IB=NAME_DB
 set PASSWORD_IB=PASS_DB
@@ -30,23 +32,19 @@ echo All GOOD!
 pause
 
 :exit1
-echo  
 echo Error creating archive.
 pause
 
 :exit2
-echo  
 echo Error restore.
 pause
 
                           
 :exit3
-echo  
 echo Error rename %WORK% > %OLD%!
 pause
 
 
 :exit4
-echo  
 echo Error rename %NEW% > %WORK%!
 pause
