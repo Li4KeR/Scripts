@@ -1,0 +1,138 @@
+from distutils.log import error
+import fdb
+import pandas as pd
+from datetime import date
+
+
+import smtplib, ssl
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
+""" Переменные """
+days_in_year = 365.2425
+now = date.today().strftime('%d.%m.%Y')
+filename = 'logging.txt'
+days_in_year = 365.2425
+now = date.today().strftime('%d.%m.%Y')
+csv_dir = '/home/admin/web/data.moscowclinic.ru/public_shtml/MK-{now}.csv'
+#BD
+name_BD = 'ip:DB'
+user_BD = 'user_fb'
+pass_BD = 'pass_fb'
+#mail
+subject = f'Логи за {now}'
+sender_email = 'mail_from'
+receiver_email = 'mail_to'
+password = 'pass_mail'
+#sql
+sql_polk = """
+    select CLIENTS.LASTNAME as lname, CLIENTS.FIRSTNAME as fname, CLIENTS.MIDNAME as mname,
+    CLIENTS.PHONE as number, TREAT.PCODE as code, CLIENTS.FILIAL as filial, TREAT.TREATDATE as fdate, CLIENTS.BDATE as BDate
+    from treat, clients
+    where treat.pcode=clients.pcode and treatdate=CURRENT_DATE-1
+    and CLIENTS.REFUSESMS not like 1 and primtreat=1 and depnum not like 10013511 and TREAT.CASHID NOT LIKE 10000007
+"""
+sql_pav = """
+    select CLIENTS.LASTNAME as lname, CLIENTS.FIRSTNAME as fname, CLIENTS.MIDNAME as mname,
+    CLIENTS.PHONE as number, TREAT.PCODE as code, CLIENTS.FILIAL as filial, TREAT.TREATDATE as fdate, CLIENTS.BDATE as BDate
+    from treat, clients
+    where treat.pcode=clients.pcode and treatdate=CURRENT_DATE-1
+    and CLIENTS.REFUSESMS not like 1 and primtreat=1 and TREAT.CASHID=10000007
+"""
+""" ________________ end_perem _______________"""
+
+
+def try_connect_df():
+    try:
+        con = fdb.connect(dsn=name_BD, user=user_BD, password=pass_BD)
+    except:
+        feedback = f'Error connect database {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return None, feedback
+    else:
+        feedback = f'Connect to database secuss {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return con, feedback
+
+def parse_sql(con, sql):
+    try:
+        cur = con.cursor()
+        cur.execute(sql)
+    except:
+        feedback = f'Error parse database {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return None, feedback
+    else:
+        feedback = f'All fine parse database {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return cur, feedback
+        
+def creat_df_obj(cur, df):
+    try:
+        for row in cur.itermap():
+            if int((date.today() - row['BDATE'].date()).days / days_in_year)>= 18:
+                new_row = {
+                            'SURNAME':row['lname'],
+                            'NAME':row['fname']+' '+row['mname'],
+                            'PHONE':row['number'],
+                            'PATIENT_ID':row['code'],
+                            'BRANCH_ID':'1',
+                            'VISIT_DATE':row['fdate'].date().strftime("%d.%m.%Y"),
+                            }
+                df = df.append(new_row, ignore_index=True)
+        df[['PATIENT_ID', 'BRANCH_ID']] = df[['PATIENT_ID', 'BRANCH_ID']].astype(int)
+        #df.to_csv('MK-' + now + '.csv', index=False, encoding="windows-1251", sep=';')
+    except:
+        feedback = f'Error creat csv {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return None, feedback
+    else:
+        feedback = f'All fine creat csv {now}'
+        with open('logging.txt', "a") as logfile:
+            print(feedback, file=logfile)
+        return df, feedback
+
+
+def save_csv():
+    try:
+        df = pd.DataFrame()
+        con, fb_connect = try_connect_df()
+        sql_polkovaya, fb_sql_polk = parse_sql(con, sql_polk)
+        sql_paveletskata, fb_sql_pav = parse_sql(con, sql_pav)
+        df, fb_csv_polkovaya = creat_df_obj(sql_polkovaya, df)
+        df, fb_csv_paveletskaya = creat_df_obj(sql_paveletskata, df)
+        df.to_csv(csv_dir, index=False, encoding="windows-1251", sep=';')
+        #df.to_csv('/home/admin/web/data.moscowclinic.ru/public_shtml/MK-' + now + '.csv', index=False, encoding="windows-1251", sep=';')
+    except:
+        feedback_full = f'{fb_connect}\n{fb_sql_polk}\n{fb_sql_pav}\n{fb_csv_polkovaya}\n{fb_csv_paveletskaya}\nError save csv'
+        return feedback_full
+    else:
+        feedback_full = f'{fb_connect}\n{fb_sql_polk}\n{fb_sql_pav}\n{fb_csv_polkovaya}\n{fb_csv_paveletskaya}'
+        return feedback_full
+
+def send_mail(feedback):
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = subject
+    message["Bcc"] = receiver_email
+    #body = f"Отчет отправки за {now}\n{feedback}"
+    body = f"{feedback}"
+    message.attach(MIMEText(body, "plain"))
+    text = message.as_string()
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.yandex.ru", 465, context=context) as server:
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, text)
+
+
+if __name__ == '__main__':
+    feedback = save_csv()
+    send_mail(feedback)
