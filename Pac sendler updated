@@ -2,11 +2,10 @@ from distutils.log import error
 import fdb
 import pandas as pd
 from datetime import date
-
-
 import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
 
 
 """ Переменные """
